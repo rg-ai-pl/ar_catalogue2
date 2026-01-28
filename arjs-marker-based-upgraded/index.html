@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>AR – 1410_ar (centered + lit)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <!-- A-Frame (newer, better WebXR + renderer fixes) -->
+    <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
+
+    <!-- AR.js (marker tracking). Using a pinned release tag for stability. -->
+    <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.0/aframe/build/aframe-ar.js"></script>
+
+    <!-- Small UX improvements for mobile browsers -->
+    <meta name="theme-color" content="#000000" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+  </head>
+  <body style="margin:0;overflow:hidden">
+    <a-scene embedded
+             vr-mode-ui="enabled:false"
+             renderer="antialias:true; colorManagement:true; physicallyCorrectLights:true; logarithmicDepthBuffer:true"
+             arjs="sourceType:webcam; detectionMode:mono; debugUIEnabled:false; sourceWidth:1280; sourceHeight:720; displayWidth:1280; displayHeight:720">
+      <!-- Lights so the model isn’t black -->
+      <a-entity light="type:ambient; intensity:1.0; color:#fff"></a-entity>
+      <a-entity light="type:hemisphere; intensity:0.9; color:#fff; groundColor:#777"></a-entity>
+      <a-entity light="type:directional; intensity:0.7" position="0.8 1.2 0.6"></a-entity>
+
+      <a-marker type="pattern"
+                url="../resources/pattern-HOGEHOGE.patt"
+                emitevents="true"
+                smooth="true" smooth-count="14" smooth-tolerance="0.006" smooth-threshold="2">
+        <a-entity id="rig" position="0 0 0" rotation="0 0 0" scale="3 3 3">
+          <!-- fallback cube (hidden unless model fails) -->
+          <a-entity id="dbg" visible="false"
+                    geometry="primitive:box; width:0.05; height:0.05; depth:0.05"
+                    material="color:#39f; opacity:0.9" position="0 0.03 0"></a-entity>
+
+          <a-entity id="model"
+                    gltf-model="../resources/1410_ar.glb"
+                    rotation="0 0 0" position="0 0 0"></a-entity>
+        </a-entity>
+      </a-marker>
+
+      <a-entity camera></a-entity>
+    </a-scene>
+
+    <script>
+      const modelEl = document.querySelector('#model');
+      const dbgEl   = document.querySelector('#dbg');
+
+      modelEl.addEventListener('model-loaded', () => {
+        const root = modelEl.getObject3D('mesh'); if (!root) return;
+
+        // Recenter on marker + rest on Y=0
+        const box = new THREE.Box3().setFromObject(root);
+        const center = new THREE.Vector3(); box.getCenter(center);
+        const minY = box.min.y;
+        root.position.set(-center.x, -minY, -center.z);
+
+        // Auto-scale to ~25 cm max dimension if huge/tiny
+        const size = new THREE.Vector3(); box.getSize(size);
+        const s = (0.25 / Math.max(size.x, size.y, size.z || 1));
+        if (s < 0.5 || s > 2.0) root.scale.setScalar(s);
+
+        // Make materials visible under most lighting
+        root.traverse(n => {
+          if (n.isMesh) {
+            n.material.side = THREE.DoubleSide;
+            if ('metalness' in n.material) n.material.metalness = 0.2;
+            if ('roughness' in n.material) n.material.roughness = 0.8;
+            if ('emissive' in n.material) n.material.emissive.set(0x111111);
+            n.material.needsUpdate = true;
+          }
+        });
+
+        dbgEl.setAttribute('visible', false);
+      });
+
+      modelEl.addEventListener('model-error', () => dbgEl.setAttribute('visible', true));
+    </script>
+
+    <!-- Tiny helper overlay (optional) -->
+    <div id="hint" style="position:fixed;left:0;right:0;bottom:0;padding:10px 12px;
+      font:14px/1.2 system-ui,-apple-system,Segoe UI,Roboto,Arial; color:#fff;
+      background:rgba(0,0,0,.55); text-align:center; z-index:9999">
+      Point the camera at the marker.
+    </div>
+
+    <script>
+      // Hide hint once the marker is seen.
+      const marker = document.querySelector('a-marker');
+      const hint = document.getElementById('hint');
+      if (marker && hint) {
+        marker.addEventListener('markerFound', () => hint.style.display = 'none');
+        marker.addEventListener('markerLost', () => hint.style.display = '');
+      }
+    </script>
+  </body>
+</html>
